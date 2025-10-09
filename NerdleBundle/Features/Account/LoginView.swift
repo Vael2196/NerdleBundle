@@ -23,19 +23,17 @@ struct LoginView: View {
                     .foregroundStyle(.nbTextPrimary)
 
                 VStack(spacing: 12) {
-                    TextField("Email", text: $email)
-                        .textContentType(.emailAddress)
-                        .keyboardType(.emailAddress)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled(true)
-                        .padding()
-                        .background(Color.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    NBInputField(placeholder: "Email",
+                                 text: $email,
+                                 secure: false,
+                                 keyboard: .emailAddress,
+                                 contentType: .emailAddress)
 
-                    SecureField("Password", text: $password)
-                        .padding()
-                        .background(Color.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    NBInputField(placeholder: "Password",
+                                 text: $password,
+                                 secure: true,
+                                 keyboard: .default,
+                                 contentType: .password)
                 }
                 .padding()
                 .background(Color.nbCard)
@@ -63,9 +61,22 @@ struct LoginView: View {
                         .padding(.horizontal)
                 }
 
-                Button("Sign up now") { showRegister = true }
-                    .foregroundStyle(.white)
-                    .padding(.top, 4)
+                NavigationLink {
+                    RegisterView()
+                } label: {
+                    Text("Sign up now")
+                        .font(.system(size: 20, weight: .bold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                }
+                .background(Color.nbHeader)
+                .clipShape(RoundedRectangle(cornerRadius: 68))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 68)
+                        .stroke(Color.nbCrimson.opacity(0.4), lineWidth: 0.8)
+                )
+                .foregroundStyle(Color.nbTextPrimary)
+                .padding(.horizontal)
 
                 Spacer()
             }

@@ -20,18 +20,22 @@ struct HomeView: View {
                         .font(.system(.title3, design: .monospaced))
                         .foregroundStyle(.nbTextPrimary)
 
-                    //TODO: This two don't work for shit yet T^T. Gotta redo this from scratch again, ig
                     HStack(spacing: 12) {
-                        GameCard(titleTop: "Movie", titleBottom: "Connections") {
-                            NavigationLink("Open", destination: FilmConnectionsView())
-                                .opacity(0)
+                        NavigationLink {
+                            FilmConnectionsView()
+                        } label: {
+                            GameCard(titleTop: "Movie", titleBottom: "Connections")
                         }
-                        .onTapGesture { }
+                        .buttonStyle(.plain)
+                        .contentShape(Rectangle())
 
-                        GameCard(titleTop: "Guess the", titleBottom: "Price (Steamdle)") {
-                            NavigationLink("Open", destination: SteamdleView())
-                                .opacity(0)
+                        NavigationLink {
+                            SteamdleView()
+                        } label: {
+                            GameCard(titleTop: "Guess the Price", titleBottom: "(Steamdle)")
                         }
+                        .buttonStyle(.plain)
+                        .contentShape(Rectangle())
                     }
                 }
                 .padding(.horizontal)
@@ -39,11 +43,11 @@ struct HomeView: View {
                 Spacer()
 
                 // Quick links (Alternative to the footer, didn't like those initially, but might repurpose them for "back" "forward" in-game nav)
-                HStack(spacing: 12) {
-                    NavPill(text: "Leaderboard") { tab = .leaderboard }
-                    NavPill(text: "Account") { tab = .account }
-                }
-                .padding(.bottom, 12)
+//                HStack(spacing: 12) {
+//                    NavPill(text: "Leaderboard") { tab = .leaderboard }
+//                    NavPill(text: "Account") { tab = .account }
+//                }
+//                .padding(.bottom, 12)
             }
             .background(Color.nbBackground.ignoresSafeArea())
         }
@@ -65,10 +69,9 @@ private struct Header: View {
     }
 }
 
-private struct GameCard<Content: View>: View {
+private struct GameCard: View {
     var titleTop: String
     var titleBottom: String
-    @ViewBuilder var content: Content
 
     var body: some View {
         ZStack {
@@ -79,15 +82,14 @@ private struct GameCard<Content: View>: View {
             VStack(spacing: 4) {
                 Text(titleTop)
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.nbTextPrimary)
+                    .foregroundStyle(Color.nbTextPrimary)
                 Text(titleBottom)
                     .font(.system(size: 12))
-                    .foregroundStyle(.nbTextPrimary)
+                    .foregroundStyle(Color.nbTextPrimary)
             }
+            .padding()
         }
-        .overlay(
-            NavigationLink(destination: EmptyView()) { EmptyView() }.opacity(0) //TODO: make the actual cards once I get APIs runnin'
-        )
+        .contentShape(Rectangle())
     }
 }
 

@@ -11,15 +11,40 @@ enum NB {
     static let corner: CGFloat = 20
 }
 
+private extension UIColor {
+    static func dynamic(light: UIColor, dark: UIColor) -> UIColor {
+        UIColor { trait in
+            trait.userInterfaceStyle == .dark ? dark : light
+        }
+    }
+}
+
 extension Color {
-    static let nbBackground = Color(red: 0.10, green: 0.10, blue: 0.11)
-    static let nbHeader = Color(red: 0.11, green: 0.12, blue: 0.14)
-    static let nbCard = Color(red: 0.16, green: 0.17, blue: 0.20)
-    static let nbCrimson = Color(red: 0.75, green: 0.00, blue: 0.01)
-    static let nbGold = Color(red: 0.75, green: 0.53, blue: 0.13)
-    static let nbMutedRed = Color(red: 0.50, green: 0.23, blue: 0.27).opacity(0.50)
-    static let nbTextPrimary = Color.white
-    static let nbTextSecondary = Color(red: 0.85, green: 0.85, blue: 0.85)
+    private static let lightBackground = UIColor(red: 0.97, green: 0.97, blue: 0.98, alpha: 1.0)
+    private static let lightHeader = UIColor(red: 0.95, green: 0.95, blue: 0.97, alpha: 1.0)
+    private static let lightCard = UIColor(red: 0.94, green: 0.95, blue: 0.96, alpha: 1.0)
+    private static let lightTextPri = UIColor(red: 0.07, green: 0.07, blue: 0.08, alpha: 1.0)
+    private static let lightTextSec = UIColor(red: 0.40, green: 0.41, blue: 0.43, alpha: 1.0)
+    private static let lightMutedRed = UIColor(red: 0.90, green: 0.65, blue: 0.68, alpha: 0.50)
+
+    private static let darkBackground = UIColor(red: 0.10, green: 0.10, blue: 0.11, alpha: 1.0)
+    private static let darkHeader = UIColor(red: 0.11, green: 0.12, blue: 0.14, alpha: 1.0)
+    private static let darkCard = UIColor(red: 0.16, green: 0.17, blue: 0.20, alpha: 1.0)
+    private static let darkTextPri = UIColor.white
+    private static let darkTextSec = UIColor(red: 0.85, green: 0.85, blue: 0.85, alpha: 1.0)
+    private static let darkMutedRed = UIColor(red: 0.50, green: 0.23, blue: 0.27, alpha: 0.50)
+
+    private static let crimson = UIColor(red: 0.75, green: 0.00, blue: 0.01, alpha: 1.0)
+    private static let gold = UIColor(red: 0.75, green: 0.53, blue: 0.13, alpha: 1.0)
+
+    static var nbBackground: Color { Color(UIColor.dynamic(light: lightBackground, dark: darkBackground)) }
+    static var nbHeader: Color { Color(UIColor.dynamic(light: lightHeader, dark: darkHeader)) }
+    static var nbCard: Color { Color(UIColor.dynamic(light: lightCard, dark: darkCard)) }
+    static var nbTextPrimary: Color { Color(UIColor.dynamic(light: lightTextPri, dark: darkTextPri)) }
+    static var nbTextSecondary: Color { Color(UIColor.dynamic(light: lightTextSec, dark: darkTextSec)) }
+    static var nbMutedRed: Color { Color(UIColor.dynamic(light: lightMutedRed, dark: darkMutedRed)) }
+    static var nbCrimson: Color { Color(crimson) }
+    static var nbGold: Color { Color(gold) }
 }
 
 extension ShapeStyle where Self == Color {

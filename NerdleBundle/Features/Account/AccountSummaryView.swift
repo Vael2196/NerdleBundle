@@ -34,6 +34,7 @@ struct AccountSummaryView: View {
                 .padding(.horizontal)
 
                 // The round chart thingy. Looks horrible, I know, but I gotta make it dynamic sometime later on, got no energy rn
+                // TODO: Change the way this looks in light mode (not gonna bother for now)
                 VStack(spacing: 8) {
                     ZStack {
                         Circle().stroke(lineWidth: 8).foregroundStyle(.white.opacity(0.2)).frame(width: 150, height: 150)
