@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import FirebaseAuth
+import FirebaseFirestore
 
 struct RegisterView: View {
     @EnvironmentObject private var app: AppState
@@ -14,6 +16,7 @@ struct RegisterView: View {
     @State private var password = ""
     @State private var confirm = ""
     @State private var error: String?
+    @State private var loading = false
 
     var body: some View {
         ScrollView {
@@ -48,22 +51,32 @@ struct RegisterView: View {
                 }
                 .padding(.horizontal)
 
-                if let error { Text(error).foregroundStyle(.red) }
+                if let error { Text(error).foregroundStyle(.red).padding(.top, 4) }
 
                 Button {
-                    guard !username.isEmpty, email.contains("@"), password.count >= 6, password == confirm else {
-                        error = "Check username/email and matching passwords (6+ chars)."
-                        return
+                    guard !username.isEmpty, !email.isEmpty, !password.isEmpty, password == confirm else {
+                        error = "Please fill all fields and match passwords."; return
                     }
-                    // TODO: replace with Firebase, just like Log in
-                    app.user = .init(id: UUID().uuidString, username: username, email: email, avatarURL: nil)
+                    loading = true; error = nil
+                    Task {
+                        do {
+                            try await AuthService.shared.signUp(email: email, password: password, username: username)
+                            await loadProfileIntoAppState()
+                        } catch {
+                            self.error = error.localizedDescription
+                        }
+                        loading = false
+                    }
                 } label: {
-                    Text("CREATE ACCOUNT")
-                        .font(.system(size: 20, weight: .bold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
+                    HStack {
+                        if loading { ProgressView().tint(.nbCrimson) }
+                        Text("CREATE ACCOUNT")
+                            .font(.system(size: 20, weight: .bold))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
                 }
-                .background(Color.nbHeader) // darker on light mode, cohesive on dark
+                .background(Color.nbHeader)
                 .clipShape(RoundedRectangle(cornerRadius: 72))
                 .overlay(
                     RoundedRectangle(cornerRadius: 72)
@@ -71,6 +84,7 @@ struct RegisterView: View {
                 )
                 .foregroundStyle(Color.nbTextPrimary)
                 .padding(.horizontal)
+                .disabled(loading)
 
                 HStack(spacing: 6) {
                     Text("Already have an account?")
@@ -89,5 +103,23 @@ struct RegisterView: View {
             }
         }
         .background(Color.nbBackground.ignoresSafeArea())
+    }
+}
+
+private extension RegisterView {
+    func loadProfileIntoAppState() async {
+        guard let uid = AuthService.shared.currentUID() else { return }
+        do {
+            let doc = try await FirebaseManager.shared.db.collection("users").document(uid).getDocument()
+            guard let data = doc.data() else { return }
+            let username = (data["username"] as? String) ?? "Player"
+            let email = (data["email"] as? String) ?? ""
+            let avatarPath = data["avatarPath"] as? String
+            let createdAt = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
+
+            let nbUser = NBUser(id: uid, email: email, username: username, avatarPath: avatarPath, createdAt: createdAt)
+            await MainActor.run { app.user = nbUser }
+        } catch {
+        }
     }
 }

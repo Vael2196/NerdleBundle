@@ -9,7 +9,7 @@ import SwiftUI
 
 @main
 struct NerdleBundleApp: App {
-    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @UIApplicationDelegateAdaptor(FirebaseAppDelegate.self) var appDelegate
     @StateObject private var appState = AppState()
 
     var body: some Scene {

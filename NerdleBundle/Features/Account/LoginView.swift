@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import FirebaseAuth
+import FirebaseFirestore
 
 struct LoginView: View {
     @EnvironmentObject private var app: AppState
@@ -13,6 +15,7 @@ struct LoginView: View {
     @State private var password = ""
     @State private var showRegister = false
     @State private var error: String?
+    @State private var loading = false
 
     var body: some View {
         NavigationStack {
@@ -40,26 +43,38 @@ struct LoginView: View {
                 .clipShape(RoundedRectangle(cornerRadius: NB.corner))
                 .padding(.horizontal)
 
-                if let error { Text(error).foregroundStyle(.red) }
+                if let error { Text(error).foregroundStyle(.red).padding(.top, 4) }
 
                 Button {
                     if email.isEmpty || password.isEmpty || !email.contains("@") {
                         error = "Please enter a valid email and password."
                         return
                     }
-                    // TODO: replace with Firebase later
-                    app.user = .init(id: UUID().uuidString, username: email.split(separator: "@").first.map(String.init) ?? "User", email: email, avatarURL: nil)
+                    loading = true; error = nil
+                    Task {
+                        do {
+                            try await AuthService.shared.signIn(email: email, password: password)
+                            await loadProfileIntoAppState()
+                        } catch {
+                            self.error = error.localizedDescription
+                        }
+                        loading = false
+                    }
                 } label: {
-                    Text("Log in")
-                        .font(.system(size: 18, weight: .bold))
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.white)
-                        .foregroundStyle(Color.purple)
-                        .clipShape(RoundedRectangle(cornerRadius: 30))
-                        .overlay(RoundedRectangle(cornerRadius: 30).stroke(Color.nbCrimson, lineWidth: 1))
-                        .padding(.horizontal)
+                    HStack {
+                        if loading { ProgressView().tint(.nbCrimson) }
+                        Text("Log in")
+                            .font(.system(size: 18, weight: .bold))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(Color.white)
+                    .foregroundStyle(Color.purple)
+                    .clipShape(RoundedRectangle(cornerRadius: 30))
+                    .overlay(RoundedRectangle(cornerRadius: 30).stroke(Color.nbCrimson, lineWidth: 1))
+                    .padding(.horizontal)
                 }
+                .disabled(loading)
 
                 NavigationLink {
                     RegisterView()
@@ -82,6 +97,24 @@ struct LoginView: View {
             }
             .background(Color.nbBackground)
             .navigationDestination(isPresented: $showRegister) { RegisterView() }
+        }
+    }
+}
+
+private extension LoginView {
+    func loadProfileIntoAppState() async {
+        guard let uid = AuthService.shared.currentUID() else { return }
+        do {
+            let doc = try await FirebaseManager.shared.db.collection("users").document(uid).getDocument()
+            guard let data = doc.data() else { return }
+            let username = (data["username"] as? String) ?? "Player"
+            let email = (data["email"] as? String) ?? ""
+            let avatarPath = data["avatarPath"] as? String
+            let createdAt = (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
+
+            let nbUser = NBUser(id: uid, email: email, username: username, avatarPath: avatarPath, createdAt: createdAt)
+            await MainActor.run { app.user = nbUser }
+        } catch {
         }
     }
 }

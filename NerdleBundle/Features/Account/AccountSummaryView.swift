@@ -1,3 +1,10 @@
+//
+//  AccountRouterView.swift
+//  NerdleBundle
+//
+//  Created by V on 8/10/2025.
+//
+
 import SwiftUI
 
 struct AccountSummaryView: View {
@@ -15,7 +22,6 @@ struct AccountSummaryView: View {
             VStack(spacing: 16) {
                 Header(title: "Account")
 
-                // TODO: Prollly will have to rebind for the Firebase
                 HStack(spacing: 12) {
                     RoundedRectangle(cornerRadius: NB.corner)
                         .fill(Color.nbMutedRed)
@@ -33,8 +39,6 @@ struct AccountSummaryView: View {
                 .clipShape(RoundedRectangle(cornerRadius: NB.corner))
                 .padding(.horizontal)
 
-                // The round chart thingy. Looks horrible, I know, but I gotta make it dynamic sometime later on, got no energy rn
-                // TODO: Change the way this looks in light mode (not gonna bother for now)
                 VStack(spacing: 8) {
                     ZStack {
                         Circle().stroke(lineWidth: 8).foregroundStyle(.white.opacity(0.2)).frame(width: 150, height: 150)
@@ -61,9 +65,15 @@ struct AccountSummaryView: View {
                 .clipShape(RoundedRectangle(cornerRadius: NB.corner))
                 .padding(.horizontal)
 
-                Button("Sign out") { app.user = nil }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.nbCrimson)
+                Button("Sign out") {
+                    do {
+                        try AuthService.shared.signOut()
+                    } catch {
+                    }
+                    app.user = nil
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.nbCrimson)
 
                 Spacer(minLength: 40)
             }

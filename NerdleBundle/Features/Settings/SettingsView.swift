@@ -10,60 +10,72 @@ import SwiftUI
 //TODO: The whole thing is pretty much a placeholder as of now. Gotta make the notifications, and some screens for the respective forms first
 struct SettingsView: View {
     @EnvironmentObject private var app: AppState
-    @State private var notifications = false
-
+    
     var body: some View {
-        NavigationStack {
+        ScrollView {
             VStack(spacing: 16) {
-                Header(title: "Settings")
+                Text("Settings")
+                    .font(.system(size: 40, weight: .bold, design: .rounded))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(Color.nbHeader)
+                    .foregroundStyle(.nbTextPrimary)
+                    .clipShape(RoundedRectangle(cornerRadius: 24))
+                    .padding(.horizontal, 8)
 
-                VStack(alignment: .leading, spacing: 12) {
-                    Toggle("Dark Mode", isOn: $app.isDarkMode)
+                VStack(spacing: 12) {
                     HStack {
-                        Text("Text Size")
+                        Text("Dark Mode").foregroundStyle(.nbTextPrimary)
                         Spacer()
-                        Stepper(value: $app.textScale, in: 0.9...1.4, step: 0.1) {
-                            Text(String(format: "%.1fx", app.textScale))
-                        }.labelsHidden()
+                        Toggle("", isOn: app.darkModeBinding)
+                            .labelsHidden()
                     }
-                    .padding(.top, 6)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Text Size")
+                            .foregroundStyle(.nbTextPrimary)
+                        Slider(value: app.textScaleBinding, in: 0.85...1.3, step: 0.05)
+                        Text(String(format: "Scale: %.2fx", app.textScale))
+                            .font(.caption)
+                            .foregroundStyle(.nbTextSecondary)
+                    }
                 }
                 .padding()
                 .background(Color.nbCard)
                 .clipShape(RoundedRectangle(cornerRadius: NB.corner))
                 .padding(.horizontal)
 
-                VStack(alignment: .leading, spacing: 12) {
-                    Button("Contact Us") { /* TODO */ }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Divider()
-
-                    Button("Report a Problem") { /* TODO */ }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(spacing: 0) {
+                    settingsRow(title: "Contact Us") {
+                        //TODO: Contact us form
+                    }
+                    Divider().background(.white.opacity(0.1))
+                    settingsRow(title: "Report a problem") {
+                        //TODO: report form
+                    }
                 }
                 .padding()
                 .background(Color.nbCard)
                 .clipShape(RoundedRectangle(cornerRadius: NB.corner))
                 .padding(.horizontal)
 
-                Spacer()
+                Spacer(minLength: 40)
             }
-            .background(Color.nbBackground.ignoresSafeArea())
         }
+        .background(Color.nbBackground.ignoresSafeArea())
     }
-}
 
-private struct Header: View {
-    let title: String
-    var body: some View {
-        Text(title)
-            .font(.system(size: 40, weight: .bold, design: .rounded))
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
-            .background(Color.nbHeader)
-            .foregroundStyle(.nbTextPrimary)
-            .clipShape(RoundedRectangle(cornerRadius: 24))
-            .padding(.horizontal, 8)
+    @ViewBuilder
+    private func settingsRow(title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                Text(title).foregroundStyle(.nbTextPrimary)
+                Spacer()
+                Image(systemName: "chevron.right").foregroundStyle(.nbTextSecondary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.vertical, 10)
     }
 }

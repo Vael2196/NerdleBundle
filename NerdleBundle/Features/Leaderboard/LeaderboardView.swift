@@ -6,17 +6,11 @@
 //
 
 import SwiftUI
+import Combine
 
 struct LeaderboardView: View {
     @State private var period: LeaderboardPeriod = .daily
-
-    private let mock: [ScoreEntry] = [
-        .init(username: "Bruce Wayne", points: 2569, game: .filmConnections, date: .now),
-        .init(username: "BatBoy1337", points: 1337, game: .steamdle, date: .now),
-        .init(username: "zZDarkKnightZz", points: 1053, game: .filmConnections, date: .now),
-        .init(username: "V1g1l4nte", points: 590,  game: .filmConnections, date: .now),
-        .init(username: "TheManHimself228", points: 448, game: .steamdle, date: .now)
-    ]
+    @StateObject private var vm = LeaderboardVM()
 
     var body: some View {
         NavigationStack {
@@ -32,12 +26,12 @@ struct LeaderboardView: View {
                 .padding(.horizontal)
 
                 List {
-                    ForEach(Array(mock.enumerated()), id: \.element.id) { idx, entry in
+                    ForEach(Array(itemsForPeriod.enumerated()), id: \.element.id) { idx, entry in
                         HStack(spacing: 12) {
                             RankBadge(rank: idx + 1)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(entry.username).font(.headline)
-                                Text("\(entry.points) points - \(entry.game == .steamdle ? "Steamdle" : "Film Connections")")
+                                Text("\(entry.points) points")
                                     .font(.subheadline)
                                     .foregroundStyle(.nbTextSecondary)
                             }
@@ -50,6 +44,16 @@ struct LeaderboardView: View {
                 .background(Color.nbBackground)
             }
             .background(Color.nbBackground.ignoresSafeArea())
+            .onAppear { vm.onAppear() }
+            .onDisappear { vm.onDisappear() }
+        }
+    }
+
+    private var itemsForPeriod: [LeaderboardEntry] {
+        switch period {
+        case .daily: return vm.daily
+        case .weekly: return vm.weekly
+        case .allTime: return vm.allTime
         }
     }
 }
@@ -76,6 +80,36 @@ private struct RankBadge: View {
                 .fill(Color.nbCard)
                 .frame(width: 40, height: 40)
             Text("#\(rank)").bold()
+        }
+    }
+}
+
+private final class LeaderboardVM: ObservableObject, LeaderboardListener {
+    @Published var daily: [LeaderboardEntry] = []
+    @Published var weekly: [LeaderboardEntry] = []
+    @Published var allTime: [LeaderboardEntry] = []
+
+    func onAppear() {
+        LeaderboardService.shared.listeners.addDelegate(self)
+        LeaderboardService.shared.start(span: .daily)
+        LeaderboardService.shared.start(span: .weekly)
+        LeaderboardService.shared.start(span: .allTime)
+    }
+
+    func onDisappear() {
+        LeaderboardService.shared.listeners.removeDelegate(self)
+        LeaderboardService.shared.stop(span: .daily)
+        LeaderboardService.shared.stop(span: .weekly)
+        LeaderboardService.shared.stop(span: .allTime)
+    }
+
+    func leaderboardUpdated(span: LeaderboardSpan, items: [LeaderboardEntry]) {
+        DispatchQueue.main.async {
+            switch span {
+            case .daily: self.daily = items
+            case .weekly: self.weekly = items
+            case .allTime: self.allTime = items
+            }
         }
     }
 }
