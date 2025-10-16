@@ -7,6 +7,7 @@
 
 import SwiftUI
 import FirebaseAuth
+import FirebaseFirestore
 
 struct FilmConnectionsResultView: View {
     let payload: FCDailyPayload
@@ -16,65 +17,135 @@ struct FilmConnectionsResultView: View {
     let points: Int
 
     @EnvironmentObject private var app: AppState
+
     @State private var shareError: String?
     @State private var sharing = false
-    @State private var sharedOK = false
-    @State private var showLoginPrompt = false
+
+    @State private var showLoginAlert = false
+    @State private var showAlreadyAlert = false
+    @State private var showSuccessAlert = false
+
+    @State private var goHome = false
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                ResultHeader(title: "Your result")
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 16) {
+                    ResultHeader(title: "Your result")
 
-                StatRow(distance: distance, elapsed: elapsed, points: points)
+                    StatRow(distance: distance, elapsed: elapsed, points: points)
 
-                PathSection(title: "Your chain", nodes: finishedPath, faded: false)
+                    PathSection(title: "Your chain", nodes: finishedPath, faded: false)
 
-                PathSection(title: "Shortest chain",
-                            nodes: payload.shortestPath ?? [],
-                            faded: true)
+                    PathSection(title: "Shortest chain",
+                                nodes: payload.shortestPath ?? [],
+                                faded: true)
 
-                if let shareError {
-                    Text(shareError).foregroundStyle(.red)
-                }
-
-                ShareButton(
-                    isLoggedIn: Auth.auth().currentUser != nil,
-                    sharedOK: sharedOK,
-                    disabled: sharing || sharedOK
-                ) {
-                    if Auth.auth().currentUser == nil {
-                        showLoginPrompt = true
-                        return
+                    if let shareError {
+                        Text(shareError).foregroundStyle(.red)
                     }
-                    Task {
-                        do {
-                            sharing = true; shareError = nil
-                            let result = FCResult(
-                                dayId: payload.dayId,
-                                path: finishedPath,
-                                distance: distance,
-                                durationSec: elapsed,
-                                points: points,
-                                finishedAt: Date()
-                            )
-                            try await FCScoreService().submit(result: result)
-                            sharedOK = true
-                        } catch {
-                            shareError = error.localizedDescription
+
+                    ShareButton(disabled: sharing) {
+                        Task {
+                            await handleShareTap()
                         }
-                        sharing = false
                     }
-                }
 
-                Spacer(minLength: 40)
+                    Button {
+                        goHome = true
+                    } label: {
+                        Text("Back to Home")
+                            .font(.system(size: 17, weight: .semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                    .background(Color.nbCard)
+                    .clipShape(RoundedRectangle(cornerRadius: 72))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 72)
+                            .stroke(Color.nbCrimson.opacity(0.25), lineWidth: 0.8)
+                    )
+                    .foregroundStyle(.nbTextPrimary)
+                    .padding(.horizontal)
+
+                    NavigationLink(
+                        destination: HomeView(tab: .constant(.home))
+                            .navigationBarBackButtonHidden(true),
+                        isActive: $goHome
+                    ) { EmptyView() }
+                    .hidden()
+
+                    Spacer(minLength: 40)
+                }
+            }
+            .background(Color.nbBackground.ignoresSafeArea())
+            .alert("Sign in required", isPresented: $showLoginAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("Log in to share your result with the community.")
+            }
+            .alert("Already shared", isPresented: $showAlreadyAlert) {
+                Button("OK") { }
+            } message: {
+                Text("Your results are already on today’s leaderboard. Well done!")
+            }
+            .alert("Shared successfully", isPresented: $showSuccessAlert) {
+                Button("Nice!") { }
+            } message: {
+                Text("Your results have been added to today’s leaderboard.")
             }
         }
-        .background(Color.nbBackground.ignoresSafeArea())
-        .alert("Sign in required", isPresented: $showLoginPrompt) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text("Log in to share your result with the community.")
+    }
+
+    private func handleShareTap() async {
+        shareError = nil
+
+        guard isLoggedInNow() else {
+            await MainActor.run { showLoginAlert = true }
+            return
+        }
+
+        if await alreadySharedToday() {
+            await MainActor.run { showAlreadyAlert = true }
+            return
+        }
+
+        await MainActor.run { sharing = true }
+        do {
+            let result = FCResult(
+                dayId: payload.dayId,
+                path: finishedPath,
+                distance: distance,
+                durationSec: elapsed,
+                points: points,
+                finishedAt: Date()
+            )
+            try await FCScoreService().submit(result: result)
+            await MainActor.run { showSuccessAlert = true }
+        } catch {
+            await MainActor.run { shareError = error.localizedDescription }
+        }
+        await MainActor.run { sharing = false }
+    }
+
+    private func isLoggedInNow() -> Bool {
+        if let u = Auth.auth().currentUser, !u.isAnonymous { return true }
+        return false
+    }
+
+    private func alreadySharedToday() async -> Bool {
+        guard let uid = Auth.auth().currentUser?.uid else { return false }
+        let db = Firestore.firestore()
+        do {
+            let snap = try await db.collection("scores")
+                .whereField("uid", isEqualTo: uid)
+                .whereField("game", isEqualTo: "film_connections")
+                .whereField("dayId", isEqualTo: payload.dayId)
+                .limit(to: 1)
+                .getDocuments()
+            return !snap.documents.isEmpty
+        } catch {
+            return false
         }
     }
 }
@@ -136,53 +207,78 @@ private struct PathSection: View {
 
             ForEach(nodes.indices, id: \.self) { idx in
                 let n = nodes[idx]
-                NodeRow(node: n, faded: faded)
+                ResultRow(node: n, faded: faded)
             }
         }
         .padding(.horizontal)
     }
 }
 
-private struct NodeRow: View {
+private struct ResultRow: View {
     let node: FCNode
     let faded: Bool
 
     var body: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(node.type == .movie ? Color.nbGold : Color.nbCrimson)
-                .frame(width: 8, height: 8)
+        HStack(spacing: 12) {
+            thumb
+                .frame(width: 40, height: 60)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(.white.opacity(0.08), lineWidth: 1))
 
-            Text(node.display)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(node.display)
+                    .foregroundStyle(.nbTextPrimary)
+                    .lineLimit(2)
+                Text(node.type == .person ? "Actor" : "Movie")
+                    .foregroundStyle(.nbTextSecondary)
+                    .font(.caption)
+            }
+
             Spacer()
-            Text(node.type == .person ? "(Actor)" : "(Movie)")
-                .foregroundStyle(.nbTextSecondary)
-                .font(.caption)
         }
         .padding(.vertical, 6)
         .padding(.horizontal, 10)
         .background((faded ? Color.nbCard.opacity(0.7) : Color.nbCard))
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
+
+    @ViewBuilder
+    private var thumb: some View {
+        if let url = TMDBImage.url(node.posterPath, size: "w92") {
+            AsyncImage(url: url) { img in
+                img.resizable().scaledToFill()
+            } placeholder: {
+                placeholder
+            }
+        } else {
+            placeholder
+        }
+    }
+
+    private var placeholder: some View {
+        ZStack {
+            Color.nbCard.opacity(0.6)
+            Image(systemName: node.type == .movie ? "film" : "person.crop.square")
+                .opacity(0.4)
+        }
+    }
 }
 
 private struct ShareButton: View {
-    let isLoggedIn: Bool
-    let sharedOK: Bool
     let disabled: Bool
     let action: () -> Void
 
-    var labelText: String {
-        if !isLoggedIn { return "Log in to share" }
-        return sharedOK ? "Shared!" : "Share with community"
-    }
-
     var body: some View {
         Button(action: action) {
-            Text(labelText)
-                .font(.system(size: 20, weight: .bold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
+            HStack(spacing: 8) {
+                Text("Share Results")
+                    .font(.system(size: 20, weight: .bold))
+                if disabled {
+                    ProgressView().scaleEffect(0.9)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
         }
         .disabled(disabled)
         .background(Color.nbHeader)

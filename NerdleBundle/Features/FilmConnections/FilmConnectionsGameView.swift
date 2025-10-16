@@ -21,6 +21,7 @@ struct FilmConnectionsGameView: View {
     @State private var finished = false
     @State private var computed: ComputedResult?
     @State private var query: String = ""
+    @State private var goResult = false
 
     struct ComputedResult { let distance: Int; let points: Int }
 
@@ -44,9 +45,7 @@ struct FilmConnectionsGameView: View {
     private var filteredItems: [ListRow] {
         guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return items }
         let q = query.lowercased()
-        return items.filter { row in
-            row.title.lowercased().contains(q)
-        }
+        return items.filter { $0.title.lowercased().contains(q) }
     }
 
     private var lastSelected: FCNode {
@@ -106,34 +105,21 @@ struct FilmConnectionsGameView: View {
             .scrollContentBackground(.hidden)
             .background(Color.nbBackground)
 
-            Spacer()
-
-            if finished {
-                NavigationLink {
-                    FilmConnectionsResultView(
-                        payload: payload,
-                        finishedPath: path,
-                        distance: computed?.distance ?? 0,
-                        elapsed: Int(elapsed),
-                        points: computed?.points ?? 0
-                    )
-                } label: {
-                    Text("View result")
-                        .font(.system(size: 20, weight: .bold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                }
-                .background(Color.nbHeader)
-                .clipShape(RoundedRectangle(cornerRadius: 72))
-                .overlay(RoundedRectangle(cornerRadius: 72).stroke(Color.nbCrimson.opacity(0.4), lineWidth: 0.8))
-                .foregroundStyle(Color.nbTextPrimary)
-                .padding(.horizontal)
-            }
+            Spacer(minLength: 12)
         }
         .background(Color.nbBackground.ignoresSafeArea())
         .onAppear { startOrJumpIfFinished() }
         .onReceive(Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()) { _ in
             if timerActive { elapsed += 0.1 }
+        }
+        .navigationDestination(isPresented: $goResult) {
+            FilmConnectionsResultView(
+                payload: payload,
+                finishedPath: path,
+                distance: computed?.distance ?? 0,
+                elapsed: Int(elapsed),
+                points: computed?.points ?? 0
+            )
         }
     }
 
@@ -156,6 +142,7 @@ struct FilmConnectionsGameView: View {
             finished = true
             timerActive = false
             items = []
+            DispatchQueue.main.async { goResult = true }
             return
         }
 
@@ -238,6 +225,8 @@ struct FilmConnectionsGameView: View {
             finishedAt: Date()
         )
         FCLocalStore.shared.save(result)
+
+        DispatchQueue.main.async { goResult = true }
     }
 
     private func format(_ t: TimeInterval) -> String {
