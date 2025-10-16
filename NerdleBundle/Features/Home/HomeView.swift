@@ -22,7 +22,7 @@ struct HomeView: View {
 
                     HStack(spacing: 12) {
                         NavigationLink {
-                            FilmConnectionsView()
+                            FilmConnectionsStartView()
                         } label: {
                             GameCard(titleTop: "Movie", titleBottom: "Connections")
                         }
