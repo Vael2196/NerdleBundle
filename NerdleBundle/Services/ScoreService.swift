@@ -38,3 +38,22 @@ final class ScoreService {
         _ = try await fm.db.collection("scores").addDocument(data: data)
     }
 }
+
+final class SteamdleScoreService {
+    func submit(dayId: String, points: Int, attemptsUsed: Int) async throws {
+        guard let uid = Auth.auth().currentUser?.uid else {
+            throw NSError(domain: "nb", code: 401, userInfo: [NSLocalizedDescriptionKey: "Sign in required"])
+        }
+        let db = Firestore.firestore()
+        let doc = db.collection("scores").document()
+        try await doc.setData([
+            "id": doc.documentID,
+            "uid": uid,
+            "game": "steamdle",
+            "points": points,
+            "createdAt": FieldValue.serverTimestamp(),
+            "attemptsUsed": attemptsUsed,
+            "dayId": dayId
+        ])
+    }
+}
