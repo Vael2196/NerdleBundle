@@ -17,6 +17,8 @@ struct SteamdleView: View {
     @State private var perRoundAttemptsUsed: [Int] = [0,0,0]
     @State private var goResults = false
 
+    @State private var saved: SteamdleProgress?
+
     var body: some View {
         NavigationStack {
             Group {
@@ -30,13 +32,24 @@ struct SteamdleView: View {
                 } else if let p = payload, p.games.count == 3 {
                     VStack(spacing: 0) {
                         header
+                        Spacer().frame(height: 6)
+
                         SteamdleRoundView(
                             game: p.games[roundIndex],
+                            initialAttempts: initialAttempts(for: roundIndex),
+                            initiallyRevealed: initiallyRevealed(for: roundIndex),
+                            onProgressChanged: { attempts, revealed in
+                                updateSaved(round: roundIndex, attempts: attempts, revealed: revealed)
+                            },
                             onFinished: { points, attempts in
                                 perRoundPoints[roundIndex] = points
                                 perRoundAttemptsUsed[roundIndex] = attempts
+
+                                updateSaved(round: roundIndex, attempts: initialAttempts(for: roundIndex), revealed: true)
+
                                 if roundIndex < 2 {
                                     roundIndex += 1
+                                    persistIndex(roundIndex)
                                 } else {
                                     goResults = true
                                 }
@@ -84,26 +97,106 @@ struct SteamdleView: View {
         loading = true; error = nil
         do {
             let res = try await SteamdleBackend.shared.getToday()
-            await MainActor.run { payload = res }
+            await MainActor.run {
+                self.payload = res
+                restoreProgressIfAny(for: res.dayId)
+            }
         } catch {
             await MainActor.run { self.error = error.localizedDescription }
         }
         loading = false
     }
+
+    private func restoreProgressIfAny(for dayId: String) {
+        let store = SteamdleLocalStore.shared
+        if let p = store.load(dayId: dayId) {
+            self.saved = p
+            self.roundIndex = min(max(p.roundIndex, 0), 2)
+
+            for r in 0..<3 {
+                let attempts = p.attempts[safe: r] ?? []
+                let (pts, used) = scoreAndAttempts(from: attempts)
+                self.perRoundPoints[r] = pts
+                self.perRoundAttemptsUsed[r] = used
+            }
+        } else {
+            self.saved = SteamdleProgress(dayId: dayId,
+                                          roundIndex: 0,
+                                          attempts: [[],[],[]],
+                                          revealed: [false,false,false])
+            store.save(self.saved!)
+        }
+    }
+
+    private func scoreAndAttempts(from attempts: [SteamdleSavedAttempt]) -> (Int, Int) {
+        if let idx = attempts.firstIndex(where: { $0.state == .correct }) {
+            return (max(0, 5 - idx), idx + 1)
+        }
+        return (0, min(5, attempts.count))
+    }
+
+    private func initialAttempts(for round: Int) -> [SteamdleRoundView.Attempt] {
+        guard let saved else { return [] }
+        let list = saved.attempts[safe: round] ?? []
+        return list.map {
+            .init(guess: $0.guess, state: SteamdleRoundView.GuessState($0.state))
+        }
+    }
+
+    private func initiallyRevealed(for round: Int) -> Bool {
+        saved?.revealed[safe: round] ?? false
+    }
+
+    private func updateSaved(round: Int, attempts: [SteamdleRoundView.Attempt], revealed: Bool) {
+        guard var s = saved else { return }
+        let mapped = attempts.map { SteamdleSavedAttempt(guess: $0.guess, state: $0.state.stringValue) }
+        if s.attempts.indices.contains(round) { s.attempts[round] = mapped }
+        if s.revealed.indices.contains(round) { s.revealed[round] = revealed }
+        self.saved = s
+        SteamdleLocalStore.shared.save(s)
+    }
+
+    private func persistIndex(_ idx: Int) {
+        guard var s = saved else { return }
+        s.roundIndex = idx
+        self.saved = s
+        SteamdleLocalStore.shared.save(s)
+    }
 }
 
 fileprivate struct SteamdleRoundView: View {
     let game: SteamdleGame
+    let initialAttempts: [Attempt]
+    let initiallyRevealed: Bool
+    let onProgressChanged: (_ attempts: [Attempt], _ revealed: Bool) -> Void
     let onFinished: (_ points: Int, _ attemptsUsed: Int) -> Void
 
-    struct Attempt {
+    struct Attempt: Equatable {
         let guess: Double
         let state: GuessState
     }
 
-    enum GuessState { case pending, tooLow, tooHigh, correct }
+    enum GuessState: Equatable {
+        case tooLow, tooHigh, correct
 
-    @State private var attempts: [Attempt?] = Array(repeating: nil, count: 5)
+        init(_ saved: SteamdleGuessState) {
+            switch saved {
+            case .tooLow: self = .tooLow
+            case .tooHigh: self = .tooHigh
+            case .correct: self = .correct
+            }
+        }
+
+        var stringValue: SteamdleGuessState {
+            switch self {
+            case .tooLow: return .tooLow
+            case .tooHigh: return .tooHigh
+            case .correct: return .correct
+            }
+        }
+    }
+
+    @State private var attempts: [Attempt] = []
     @State private var currentRaw: String = ""
     @FocusState private var focused: Bool
     @State private var revealed = false
@@ -121,6 +214,7 @@ fileprivate struct SteamdleRoundView: View {
                     )
                     .frame(height: 180)
                     .padding(.horizontal)
+                    .padding(.top, 6)
 
                 VStack(spacing: 4) {
                     Text(game.name)
@@ -186,8 +280,16 @@ fileprivate struct SteamdleRoundView: View {
             }
         }
         .background(Color.nbBackground)
-        .onAppear { resetForGame() }
-        .onChange(of: game.appid) { _ in resetForGame() }
+        .onAppear {
+            attempts = initialAttempts
+            revealed = initiallyRevealed || isRoundExhaustedOrCorrect()
+            onProgressChanged(attempts, revealed)
+        }
+        .onChange(of: game.appid) { _ in
+            attempts = initialAttempts
+            revealed = initiallyRevealed || isRoundExhaustedOrCorrect()
+            onProgressChanged(attempts, revealed)
+        }
     }
 
     @ViewBuilder
@@ -201,22 +303,22 @@ fileprivate struct SteamdleRoundView: View {
                 .foregroundStyle(.nbTextSecondary)
                 .frame(width: 28)
 
-            if let att = attempts[index] {
+            if let att = attempts[safe: index] {
                 HStack(spacing: 8) {
                     Text(formatAUD(att.guess))
                         .foregroundStyle(.nbTextPrimary)
                         .padding(.vertical, 10)
                         .padding(.horizontal, 12)
-                        .background(Color.nbCard.opacity(0.75))
+                        .background(Color.nbCard.opacity(0.85))
                         .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(borderColor(for: att.state), lineWidth: 1)
+                        )
 
                     icon(for: att.state)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(borderColor(for: att.state), lineWidth: 1)
-                )
                 .accessibilityLabel("Guess \(index + 1): \(formatAUD(att.guess))")
             } else if isActive {
                 HStack(spacing: 8) {
@@ -239,18 +341,9 @@ fileprivate struct SteamdleRoundView: View {
                     .background(.white.opacity(0.08))
                     .clipShape(Capsule())
                 }
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(.white.opacity(0.08), lineWidth: 1)
-                )
                 .accessibilityHint("Active field. Enter your guess and tap Guess.")
-                .toolbar {
-                    ToolbarItemGroup(placement: .keyboard) {
-                        Spacer()
-                        Button("Guess") { submit(index) }
-                    }
-                }
                 .onAppear { focused = true }
+
             } else {
                 HStack(spacing: 8) {
                     Text("Locked")
@@ -259,29 +352,20 @@ fileprivate struct SteamdleRoundView: View {
                         .padding(.horizontal, 12)
                         .background(Color.nbCard.opacity(0.5))
                         .clipShape(RoundedRectangle(cornerRadius: 10))
+
                     Image(systemName: "lock.fill")
                         .foregroundStyle(.nbTextSecondary.opacity(0.7))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(.white.opacity(0.06), lineWidth: 1)
-                )
                 .accessibilityLabel("Attempt \(index + 1) locked until previous guess is submitted")
             }
         }
         .padding(.vertical, 2)
     }
 
-    private func resetForGame() {
-        attempts = Array(repeating: nil, count: 5)
-        currentRaw = ""
-        revealed = false
-        focused = true
-    }
 
     private func firstPendingIndex() -> Int? {
-        for i in 0..<5 where attempts[i] == nil { return i }
+        for i in 0..<5 where attempts[safe: i] == nil { return i }
         return nil
     }
 
@@ -289,40 +373,37 @@ fileprivate struct SteamdleRoundView: View {
         guard !revealed else { return }
         guard let value = parse(currentRaw) else { return }
 
-        let state: GuessState
-        if isCorrect(value) {
-            state = .correct
-        } else {
-            state = value < game.priceAUD ? .tooLow : .tooHigh
-        }
-
-        attempts[index] = Attempt(guess: value, state: state)
-
-        if case .correct = state {
-            revealNow()
-            return
-        }
+        let state: GuessState = isCorrect(value) ? .correct : (value < game.priceAUD ? .tooLow : .tooHigh)
+        attempts.append(.init(guess: value, state: state))
 
         currentRaw = ""
-        if firstPendingIndex() == nil {
+        onProgressChanged(attempts, revealed)
+
+        if state == .correct || attempts.count >= 5 {
             revealNow()
+            return
         }
     }
 
     private func revealNow() {
         revealed = true
         focused = false
+        onProgressChanged(attempts, revealed)
+    }
+
+    private func isRoundExhaustedOrCorrect() -> Bool {
+        attempts.contains(where: { $0.state == .correct }) || attempts.count >= 5
     }
 
     private func attemptsUsed() -> Int {
-        if let idx = attempts.firstIndex(where: { $0?.state == .correct }) {
+        if let idx = attempts.firstIndex(where: { $0.state == .correct }) {
             return idx + 1
         }
-        return 5
+        return min(5, attempts.count)
     }
 
     private func score() -> Int {
-        if let idx = attempts.firstIndex(where: { $0?.state == .correct }) {
+        if let idx = attempts.firstIndex(where: { $0.state == .correct }) {
             return max(0, 5 - idx)
         }
         return 0
@@ -347,8 +428,6 @@ fileprivate struct SteamdleRoundView: View {
     @ViewBuilder
     private func icon(for state: GuessState) -> some View {
         switch state {
-        case .pending:
-            EmptyView()
         case .tooLow:
             Image(systemName: "arrow.up.circle.fill").foregroundStyle(.nbCrimson)
         case .tooHigh:
@@ -360,9 +439,12 @@ fileprivate struct SteamdleRoundView: View {
 
     private func borderColor(for state: GuessState) -> Color {
         switch state {
-        case .pending: return .white.opacity(0.08)
-        case .tooLow, .tooHigh: return .nbCrimson.opacity(0.5)
+        case .tooLow, .tooHigh: return .nbCrimson.opacity(0.7)
         case .correct: return .nbGold
         }
     }
+}
+
+fileprivate extension Array {
+    subscript(safe idx: Int) -> Element? { indices.contains(idx) ? self[idx] : nil }
 }
