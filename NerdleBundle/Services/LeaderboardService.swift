@@ -24,14 +24,16 @@ final class LeaderboardService {
     private let fm = FirebaseManager.shared
     private var listenersBySpan: [LeaderboardSpan: ListenerRegistration] = [:]
 
+    private var usernameCache: [String: String] = [:]
+
     let listeners = MulticastDelegate<LeaderboardListener>()
     private init() {}
 
     func start(span: LeaderboardSpan, limit: Int = 100) {
         stop(span: span)
 
-        let q: Query
         let scores = fm.db.collection("scores")
+        let q: Query
 
         switch span {
         case .daily:
@@ -39,28 +41,20 @@ final class LeaderboardService {
             q = scores
                 .whereField("createdAt", isGreaterThanOrEqualTo: start)
                 .whereField("createdAt", isLessThan: end)
-                .order(by: "points", descending: true)
-                .order(by: "createdAt", descending: true)
-                .limit(to: limit)
 
         case .weekly:
             let (start, end) = Date.utcWeekBounds()
             q = scores
                 .whereField("createdAt", isGreaterThanOrEqualTo: start)
                 .whereField("createdAt", isLessThan: end)
-                .order(by: "points", descending: true)
-                .order(by: "createdAt", descending: true)
-                .limit(to: limit)
 
         case .allTime:
             q = scores
-                .order(by: "points", descending: true)
-                .limit(to: limit)
         }
 
         listenersBySpan[span] = q.addSnapshotListener { [weak self] snap, _ in
             guard let self = self, let docs = snap?.documents else { return }
-            self.resolveEntries(docs: docs) { entries in
+            self.aggregateAndResolve(docs: docs, limit: limit) { entries in
                 self.listeners.invoke { $0.leaderboardUpdated(span: span, items: entries) }
             }
         }
@@ -71,7 +65,46 @@ final class LeaderboardService {
         listenersBySpan.removeValue(forKey: span)
     }
 
-    // TODO: I am yet to test this "You are smarter than 90% of the people in the room" ahh thing out, but I gotta figure out the score/point system and implement the actual games to give away those points first, I reckon
+    private func aggregateAndResolve(docs: [QueryDocumentSnapshot],
+                                     limit: Int,
+                                     completion: @escaping ([LeaderboardEntry]) -> Void) {
+        var totals: [String: Int] = [:]
+        for d in docs {
+            let data = d.data()
+            guard let uid = data["uid"] as? String else { continue }
+            let pts = data["points"] as? Int ?? 0
+            totals[uid, default: 0] += pts
+        }
+
+        let uids = Array(totals.keys)
+        var resolved: [LeaderboardEntry] = []
+        let group = DispatchGroup()
+
+        for uid in uids {
+            if let name = usernameCache[uid] {
+                resolved.append(LeaderboardEntry(id: uid, username: name, points: totals[uid] ?? 0, uid: uid))
+                continue
+            }
+
+            group.enter()
+            fm.db.collection("users").document(uid).getDocument { [weak self] snap, _ in
+                let name = (snap?.data()?["username"] as? String) ?? "Player"
+                self?.usernameCache[uid] = name
+                resolved.append(LeaderboardEntry(id: uid, username: name, points: totals[uid] ?? 0, uid: uid))
+                group.leave()
+            }
+        }
+
+        group.notify(queue: .main) {
+            let sorted = resolved.sorted {
+                if $0.points == $1.points { return $0.username.localizedCaseInsensitiveCompare($1.username) == .orderedAscending }
+                return $0.points > $1.points
+            }
+
+            completion(Array(sorted.prefix(limit)))
+        }
+    }
+
     func percentile(forPoints points: Int, span: LeaderboardSpan) async throws -> Double {
         let scores = fm.db.collection("scores")
         let q: Query
@@ -98,25 +131,5 @@ final class LeaderboardService {
         let rank = higher + 1
         let percentile = (1.0 - Double(rank - 1) / Double(total)) * 100.0
         return max(0, min(100, percentile))
-    }
-
-    private func resolveEntries(docs: [QueryDocumentSnapshot], completion: @escaping ([LeaderboardEntry]) -> Void) {
-        let group = DispatchGroup()
-        var entries: [LeaderboardEntry] = []
-        let db = fm.db
-
-        for d in docs {
-            let data = d.data()
-            let uid = data["uid"] as? String ?? ""
-            let points = data["points"] as? Int ?? 0
-
-            group.enter()
-            db.collection("users").document(uid).getDocument { snap, _ in
-                let username = snap?.data()?["username"] as? String ?? "Player"
-                entries.append(LeaderboardEntry(id: d.documentID, username: username, points: points, uid: uid))
-                group.leave()
-            }
-        }
-        group.notify(queue: .main) { completion(entries.sorted { $0.points > $1.points }) }
     }
 }
