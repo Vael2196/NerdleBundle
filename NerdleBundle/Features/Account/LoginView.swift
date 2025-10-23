@@ -42,6 +42,9 @@ struct LoginView: View {
                 .background(Color.nbCard)
                 .clipShape(RoundedRectangle(cornerRadius: NB.corner))
                 .padding(.horizontal)
+                .task {
+                    await checkExistingSession()
+                }
 
                 if let error { Text(error).foregroundStyle(.red).padding(.top, 4) }
 
@@ -102,6 +105,10 @@ struct LoginView: View {
 }
 
 private extension LoginView {
+    func checkExistingSession() async {
+            guard let uid = AuthService.shared.currentUID() else { return }
+            await loadProfileIntoAppState()
+        }
     func loadProfileIntoAppState() async {
         guard let uid = AuthService.shared.currentUID() else { return }
         do {
