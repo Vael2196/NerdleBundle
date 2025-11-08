@@ -8,7 +8,8 @@
 import SwiftUI
 import FirebaseFirestore
 
-
+/// Pre-game screen for Film Connections.
+/// Fetches today’s pair, waits for backend to finish computing the shortest path, and then lets the player jump in.
 struct FilmConnectionsStartView: View {
     @State private var daily: FCDailyPayload?
     @State private var loading = true
@@ -17,8 +18,10 @@ struct FilmConnectionsStartView: View {
 
     @State private var listener: ListenerRegistration?
 
+    /// Basic sanity check so the "play" button isn't tappable with missing movies.
     private var canStart: Bool { daily?.movieA.id != nil && daily?.movieB.id != nil }
 
+    /// “Ready” means: either shortestDistance is present or status says ready.
     private var isReady: Bool {
         guard let d = daily else { return false }
         return d.shortestDistance != nil || d.status == "ready"
@@ -51,6 +54,8 @@ struct FilmConnectionsStartView: View {
                 } else if loading {
                     ProgressView().padding(.top, 8)
                 } else if !isReady {
+                    // If BFS hasn’t finished yet, still let the player start,
+                    // and the optimal path will sync in via Firestore later.
                     Text("Preparing today’s optimal path… you can start now.")
                         .foregroundStyle(.nbTextSecondary)
                         .padding(.top, 4)
@@ -83,6 +88,7 @@ struct FilmConnectionsStartView: View {
         }
     }
 
+    /// Poster placeholder helper – either show poster image or just the title.
     @ViewBuilder
     private func poster(_ movie: FCMovie?) -> some View {
         ZStack {
@@ -102,12 +108,14 @@ struct FilmConnectionsStartView: View {
         }
     }
 
+    /// First fetch for today’s doc, then hook into Firestore live updates for status / shortest path.
     private func initialFetchAndListen() async {
         await fetchOnce()
         guard let d = daily else { return }
         startListening(dayId: d.dayId)
     }
 
+    /// One-off call to the Cloud Function to get today’s payload.
     private func fetchOnce() async {
         loading = true; error = nil
         defer { loading = false }
@@ -120,6 +128,7 @@ struct FilmConnectionsStartView: View {
         }
     }
 
+    /// Starts a snapshot listener on the `fc_daily/{dayId}` doc to pick up status + shortestPath updates.
     private func startListening(dayId: String) {
         guard listener == nil else { return }
         let doc = Firestore.firestore().collection("fc_daily").document(dayId)
@@ -130,6 +139,7 @@ struct FilmConnectionsStartView: View {
             }
             guard let data = snap?.data() else { return }
 
+            // Safely decode movieA + movieB into `FCMovie`.
             guard
                 let movieAmap = data["movieA"] as? [String: Any],
                 let movieBmap = data["movieB"] as? [String: Any],
@@ -152,6 +162,7 @@ struct FilmConnectionsStartView: View {
                 releaseDate: movieBmap["releaseDate"] as? String
             )
 
+            // Decode `shortestPath` array of nodes if present.
             var sp: [FCNode]? = nil
             if let arr = data["shortestPath"] as? [[String: Any]] {
                 sp = arr.compactMap { dict in

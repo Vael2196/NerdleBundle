@@ -7,7 +7,9 @@
 
 import SwiftUI
 
+/// Landing screen for the app – basically the "pick your daily" hub.
 struct HomeView: View {
+    /// Binding into the main tab state so buttons here *could* switch tabs if needed.
     @Binding var tab: TabShellView.Tab
 
     var body: some View {
@@ -69,6 +71,7 @@ private struct Header: View {
     }
 }
 
+/// Simple card style for daily games on the home screen.
 private struct GameCard: View {
     var titleTop: String
     var titleBottom: String
@@ -89,10 +92,12 @@ private struct GameCard: View {
             }
             .padding()
         }
+        // Make the whole card tappable, not just the text.
         .contentShape(Rectangle())
     }
 }
 
+/// Chip-style button used for secondary navigation shortcuts.
 private struct NavPill: View {
     var text: String
     var action: () -> Void

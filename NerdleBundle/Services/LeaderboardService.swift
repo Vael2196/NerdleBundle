@@ -8,10 +8,12 @@
 import Foundation
 import FirebaseFirestore
 
+/// Anything that wants live leaderboard updates implements this.
 protocol LeaderboardListener: AnyObject {
     func leaderboardUpdated(span: LeaderboardSpan, items: [LeaderboardEntry])
 }
 
+/// Simple value type for a ranked user row.
 struct LeaderboardEntry: Identifiable {
     let id: String
     let username: String
@@ -19,16 +21,20 @@ struct LeaderboardEntry: Identifiable {
     let uid: String
 }
 
+/// Service that streams leaderboards from Firestore and aggregates
+/// scores per user (daily/weekly/all-time).
 final class LeaderboardService {
     static let shared = LeaderboardService()
     private let fm = FirebaseManager.shared
     private var listenersBySpan: [LeaderboardSpan: ListenerRegistration] = [:]
 
+    /// Tiny username cache to avoid re-fetching /users/{uid} for every snapshot.
     private var usernameCache: [String: String] = [:]
 
     let listeners = MulticastDelegate<LeaderboardListener>()
     private init() {}
 
+    /// Starts listening for a leaderboard span and notifies all delegates.
     func start(span: LeaderboardSpan, limit: Int = 100) {
         stop(span: span)
 
@@ -54,6 +60,7 @@ final class LeaderboardService {
 
         listenersBySpan[span] = q.addSnapshotListener { [weak self] snap, _ in
             guard let self = self, let docs = snap?.documents else { return }
+            // Docs here are raw score entries; this call folds them into per-user totals.
             self.aggregateAndResolve(docs: docs, limit: limit) { entries in
                 self.listeners.invoke { $0.leaderboardUpdated(span: span, items: entries) }
             }
@@ -65,6 +72,10 @@ final class LeaderboardService {
         listenersBySpan.removeValue(forKey: span)
     }
 
+    /// This function:
+    ///  - groups all score docs by uid
+    ///  - resolves usernames (with a tiny cache)
+    ///  - sorts by total points and trims to `limit`
     private func aggregateAndResolve(docs: [QueryDocumentSnapshot],
                                      limit: Int,
                                      completion: @escaping ([LeaderboardEntry]) -> Void) {
@@ -105,6 +116,8 @@ final class LeaderboardService {
         }
     }
 
+    /// Computes percentile based on how many players have strictly higher points.
+    /// Uses Firestore count aggregations so the client doesn’t need to download everything.
     func percentile(forPoints points: Int, span: LeaderboardSpan) async throws -> Double {
         let scores = fm.db.collection("scores")
         let q: Query

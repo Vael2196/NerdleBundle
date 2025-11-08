@@ -8,6 +8,7 @@
 import SwiftUI
 import Charts
 
+/// Main profile screen – shows user info, stats, and the cute donut chart.
 struct AccountSummaryView: View {
     @EnvironmentObject private var app: AppState
     @StateObject private var vm = AccountSummaryVM()
@@ -17,6 +18,7 @@ struct AccountSummaryView: View {
             VStack(spacing: 16) {
                 Header(title: "Account")
 
+                // Basic user info card (name + email).
                 HStack(spacing: 12) {
                     RoundedRectangle(cornerRadius: NB.corner)
                         .fill(Color.nbMutedRed)
@@ -34,6 +36,7 @@ struct AccountSummaryView: View {
                 .clipShape(RoundedRectangle(cornerRadius: NB.corner))
                 .padding(.horizontal)
 
+                // Chart mode toggle for "percentile vs avg per day".
                 Picker("", selection: $vm.chartMode) {
                     Text("% Better").tag(AccountSummaryVM.ChartMode.percentile)
                     Text("Avg / day").tag(AccountSummaryVM.ChartMode.dailyAvg)
@@ -60,6 +63,7 @@ struct AccountSummaryView: View {
                     }
                 }
 
+                // Quick stats: daily / weekly total + all-time rank.
                 HStack {
                     StatTile(title: "DAILY POINTS", value: "\(vm.dailyPoints)")
                     Divider().frame(height: 60).background(.white.opacity(0.1))
@@ -73,6 +77,7 @@ struct AccountSummaryView: View {
                 .padding(.horizontal)
 
                 Button("Sign out") {
+                    // Fire the Auth sign out, then clear the local user snapshot too.
                     do { try AuthService.shared.signOut() } catch { }
                     app.user = nil
                 }
@@ -113,25 +118,32 @@ private struct StatTile: View {
     }
 }
 
+/// Donut chart that shows a single percentage value in the middle.
+/// The whole donut fills as `percent` approaches 100.
 fileprivate struct PercentileDonut: View {
     let percent: Double
 
     var body: some View {
         ZStack {
+            // Background ring.
             Circle()
                 .stroke(lineWidth: 10)
                 .foregroundStyle(.white.opacity(0.18))
+            // Foreground arc, clamped between 0 and 1 then rotated so it starts at the top.
             Circle()
                 .trim(from: 0, to: CGFloat(max(0, min(1, percent/100.0))))
                 .stroke(style: StrokeStyle(lineWidth: 10, lineCap: .round))
                 .foregroundStyle(.nbGold)
                 .rotationEffect(.degrees(-90))
+            // Center label: "65%" style.
             Text("\(Int(round(percent)))%")
                 .font(.title).bold()
         }
     }
 }
 
+/// Bar chart for the last 7 days of scores.
+/// Uses `Charts` when available and falls back to a manual layout on older iOS.
 fileprivate struct DailyAverageChart: View {
     let series: [AccountSummaryVM.DayPoint]
     let maxPerDay: Int
@@ -140,6 +152,7 @@ fileprivate struct DailyAverageChart: View {
         if #available(iOS 16.0, *) {
             Chart(series) { dp in
                 BarMark(
+                    // Unit `.day` keeps bars grouped by calendar day instead of full timestamps.
                     x: .value("Day", dp.date, unit: .day),
                     y: .value("Score", dp.total)
                 )
@@ -160,6 +173,7 @@ fileprivate struct DailyAverageChart: View {
                 }
             }
         } else {
+            // Poor-man's chart for devices without Swift Charts.
             VStack(spacing: 8) {
                 ForEach(series) { dp in
                     HStack {

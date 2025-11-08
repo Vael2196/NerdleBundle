@@ -9,6 +9,8 @@ import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
 
+/// Post-game summary screen for Steamdle – shows today’s games and the player’s stats,
+/// and lets them push their score to Firestore.
 struct SteamdleResultView: View {
     let dayId: String
     let games: [SteamdleGame]
@@ -29,6 +31,7 @@ struct SteamdleResultView: View {
                 VStack(spacing: 16) {
                     header
 
+                    // High-level stats for the day’s session.
                     HStack {
                         StatTile(title: "GAMES", value: "\(games.count)")
                         Divider().frame(height: 60).background(.white.opacity(0.1))
@@ -41,6 +44,7 @@ struct SteamdleResultView: View {
                     .clipShape(RoundedRectangle(cornerRadius: NB.corner))
                     .padding(.horizontal)
 
+                    // Quick recap of the three games and their actual prices.
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Today’s picks").font(.headline)
                         ForEach(games) { g in
@@ -109,6 +113,7 @@ struct SteamdleResultView: View {
                 }
             }
             .background(Color.nbBackground.ignoresSafeArea())
+            // Alert stack for share flow.
             .alert("Sign in required", isPresented: $showLoginAlert) { Button("OK", role: .cancel) { } } message: {
                 Text("Log in to share your result with the community.")
             }
@@ -132,6 +137,7 @@ struct SteamdleResultView: View {
             .padding(.horizontal, 8)
     }
 
+    /// Share flow: checks login, ensures no duplicate record, then calls the score service.
     private func shareTap() async {
         shareError = nil
         guard let u = Auth.auth().currentUser, !u.isAnonymous else {
@@ -154,6 +160,7 @@ struct SteamdleResultView: View {
         await MainActor.run { sharing = false }
     }
 
+    /// Same idea as in Film Connections: avoid double posting scores for the same day.
     private func alreadySharedToday() async -> Bool {
         guard let uid = Auth.auth().currentUser?.uid else { return false }
         let db = Firestore.firestore()
@@ -170,6 +177,7 @@ struct SteamdleResultView: View {
         }
     }
 
+    /// AU currency formatter helper – reused in a few spots.
     private func formatAUD(_ v: Double) -> String {
         let f = NumberFormatter()
         f.numberStyle = .currency

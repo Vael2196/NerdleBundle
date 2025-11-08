@@ -8,6 +8,8 @@
 import SwiftUI
 import Combine
 
+/// Old prototype view for Film Connections – kept around as a simple timer demo, not used in main flow anymore
+/// (I'll use it for the archive feature sometime later).
 struct FilmConnectionsView: View {
     @State private var timerActive = false
     @State private var elapsed: TimeInterval = 0

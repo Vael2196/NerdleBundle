@@ -9,6 +9,8 @@ import Foundation
 import FirebaseFirestore
 import FirebaseAuth
 
+/// Generic score writer used by FilmConnections + Steamdle.
+/// Everything ends up in the `scores` collection with some extra metadata.
 final class ScoreService {
     static let shared = ScoreService()
     private let fm = FirebaseManager.shared
@@ -24,6 +26,7 @@ final class ScoreService {
                          extra: ["attemptsUsed": attemptsUsed])
     }
 
+    /// Internal helper that builds the Firestore payload and adds the doc.
     private func submit(game: GameType, points: Int, extra: [String: Any]) async throws {
         guard let uid = fm.auth.currentUser?.uid else { throw NSError(domain: "auth", code: 401) }
 
@@ -39,6 +42,8 @@ final class ScoreService {
     }
 }
 
+/// Steamdle-specific score writer that includes dayId + attemptsUsed.
+/// This type mirrors FCScoreService but is kept separate for clarity.
 final class SteamdleScoreService {
     func submit(dayId: String, points: Int, attemptsUsed: Int) async throws {
         guard let uid = Auth.auth().currentUser?.uid else {

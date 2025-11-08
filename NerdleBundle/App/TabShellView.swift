@@ -7,8 +7,11 @@
 
 import SwiftUI
 
+/// Root tab bar for the whole app.
+/// Every major section lives under one of these tabs.
 struct TabShellView: View {
     enum Tab { case home, leaderboard, account, settings }
+    /// Currently selected tab. Also passed down to `HomeView` so it can jump tabs.
     @State private var tab: Tab = .home
 
     var body: some View {

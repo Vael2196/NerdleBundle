@@ -9,6 +9,8 @@ import FirebaseFirestore
 import FirebaseStorage
 import FirebaseAuth
 
+/// Handles profile tweaks: username + avatar upload.
+/// Keeps all user-profile Firestore/Storage writes in one place.
 final class ProfileService {
     static let shared = ProfileService()
     private let fm = FirebaseManager.shared
@@ -19,6 +21,8 @@ final class ProfileService {
         try await fm.db.collection("users").document(uid).setData(["username": username], merge: true)
     }
 
+    /// Uploads a JPEG avatar to Storage under avatars/{uid}.jpg
+    /// and stores the path on the user document.
     func uploadAvatar(image: UIImage) async throws {
         guard let uid = fm.auth.currentUser?.uid else { throw NSError(domain: "auth", code: 401) }
         guard let data = image.jpegData(compressionQuality: 0.85) else { throw NSError(domain: "img", code: 0) }

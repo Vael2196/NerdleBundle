@@ -10,6 +10,8 @@ import FirebaseFunctions
 import FirebaseAuth
 import FirebaseFirestore
 
+/// Backend bridge for FilmConnections.
+/// This type hides all the Cloud Functions marshalling / JSON decoding.
 final class FCBackend {
     static let shared = FCBackend()
     private let functions = Functions.functions(region: "australia-southeast2")
@@ -40,6 +42,8 @@ final class FCBackend {
     }
 }
 
+/// Simple local cache for the last FilmConnections result.
+/// Used for "cheat protection" and to restore an in-progress game for the same day.
 final class FCLocalStore {
     static let shared = FCLocalStore()
     private let key = "nb.fc.result"
@@ -47,6 +51,7 @@ final class FCLocalStore {
     func load(dayId: String) -> FCResult? {
         guard let data = UserDefaults.standard.data(forKey: key) else { return nil }
         guard let result = try? JSONDecoder().decode(FCResult.self, from: data) else { return nil }
+        // Only return the result if it matches today's dayId.
         return result.dayId == dayId ? result : nil
     }
 
@@ -59,6 +64,8 @@ final class FCLocalStore {
     func clear() { UserDefaults.standard.removeObject(forKey: key) }
 }
 
+/// Service that writes FilmConnections scores into the shared `scores` collection.
+/// Steamdle and other games use the same collection, just with different metadata.
 final class FCScoreService {
     func submit(result: FCResult) async throws {
         guard let uid = Auth.auth().currentUser?.uid else {

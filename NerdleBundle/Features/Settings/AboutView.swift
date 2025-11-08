@@ -7,6 +7,7 @@
 
 import SwiftUI
 
+/// Static About / Attributions page – basically the legal + credits corner.
 struct AboutView: View {
     var body: some View {
         ScrollView {

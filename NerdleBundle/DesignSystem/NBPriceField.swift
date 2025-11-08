@@ -7,12 +7,15 @@
 
 import SwiftUI
 
+/// Number-only input used for price guessing.
+/// Binds straight to a `Double?` so it can be easily reset/validated.
 struct NBPriceField: View {
     let placeholder: String
     @Binding var value: Double?
 
     @Environment(\.colorScheme) private var scheme
 
+    /// Same vibe as NBInputField, just reused for numeric entry.
     private var fieldBackground: Color {
         scheme == .dark ? Color(red: 0.18, green: 0.19, blue: 0.22) : .white
     }
@@ -22,6 +25,7 @@ struct NBPriceField: View {
 
     var body: some View {
         ZStack(alignment: .leading) {
+            // Placeholder only shows when there's no numeric value yet.
             if value == nil {
                 Text(placeholder)
                     .foregroundColor(placeholderColor)
@@ -31,6 +35,7 @@ struct NBPriceField: View {
             TextField(
                 "",
                 value: $value,
+                // Allows 0–2 decimal places, which is plenty for prices.
                 format: .number.precision(.fractionLength(0...2))
             )
             .keyboardType(.decimalPad)

@@ -7,8 +7,12 @@
 
 import Foundation
 
+/// High-level spans used by leaderboard queries.
 enum LeaderboardSpan { case daily, weekly, allTime }
 
+/// UTC-based helpers for anything that should be timezone-agnostic
+/// or consistent with server/Firestore semantics.
+/// (mostly the latter)
 extension Date {
     static func utcNow() -> Date {
         let now = Date()

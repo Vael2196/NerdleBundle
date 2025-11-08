@@ -7,6 +7,7 @@
 
 import SwiftUI
 
+/// Basic settings screen: theming, text size, and links to About / Contact.
 struct SettingsView: View {
     @EnvironmentObject private var app: AppState
     @State private var showContactAlert = false
@@ -25,6 +26,7 @@ struct SettingsView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 24))
                         .padding(.horizontal, 8)
 
+                    // Theme + text scale block.
                     VStack(spacing: 12) {
                         HStack {
                             Text("Dark Mode").foregroundStyle(.nbTextPrimary)
@@ -47,8 +49,10 @@ struct SettingsView: View {
                     .clipShape(RoundedRectangle(cornerRadius: NB.corner))
                     .padding(.horizontal)
 
+                    // Info actions: Contact and About.
                     VStack(spacing: 0) {
                         settingsRow(title: "Contact Us") {
+                            // Just shows an alert with the email right now.
                             showContactAlert = true
                         }
                         Divider().background(.white.opacity(0.1))
@@ -76,6 +80,7 @@ struct SettingsView: View {
         }
     }
 
+    /// Generic settings row with trailing chevron – used for navigation-style rows.
     @ViewBuilder
     private func settingsRow(title: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {

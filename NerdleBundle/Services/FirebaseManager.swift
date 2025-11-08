@@ -10,6 +10,8 @@ import FirebaseAuth
 import FirebaseFirestore
 import FirebaseStorage
 
+/// Central place for all Firebase singletons used by the app.
+/// This keeps the rest of the code from calling `Auth.auth()` etc. directly.
 final class FirebaseManager {
     static let shared = FirebaseManager()
     let auth = Auth.auth()

@@ -9,6 +9,8 @@ import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
 
+/// Sign-up screen for new users.
+/// Creates both a Firebase Auth user and a `/users` document.
 struct RegisterView: View {
     @EnvironmentObject private var app: AppState
     @State private var username = ""
@@ -54,6 +56,7 @@ struct RegisterView: View {
                 if let error { Text(error).foregroundStyle(.red).padding(.top, 4) }
 
                 Button {
+                    // Ultra-basic validation: required fields + matching passwords.
                     guard !username.isEmpty, !email.isEmpty, !password.isEmpty, password == confirm else {
                         error = "Please fill all fields and match passwords."; return
                     }
@@ -107,6 +110,7 @@ struct RegisterView: View {
 }
 
 private extension RegisterView {
+    /// After successful sign-up, this pulls the freshly created user doc and sets `app.user`.
     func loadProfileIntoAppState() async {
         guard let uid = AuthService.shared.currentUID() else { return }
         do {
@@ -120,6 +124,7 @@ private extension RegisterView {
             let nbUser = NBUser(id: uid, email: email, username: username, avatarPath: avatarPath, createdAt: createdAt)
             await MainActor.run { app.user = nbUser }
         } catch {
+            // If this fails, the Firebase user still exists, just no profile cached locally yet.
         }
     }
 }

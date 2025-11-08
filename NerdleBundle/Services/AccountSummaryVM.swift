@@ -10,6 +10,9 @@ import FirebaseAuth
 import FirebaseFirestore
 import Combine
 
+/// View model that powers the Account summary screen:
+/// pulls scores from Firestore, builds the donut chart data,
+/// and computes the "how cracked are you" percentile.
 @MainActor
 final class AccountSummaryVM: ObservableObject {
     @Published var dailyPoints: Int = 0
@@ -19,9 +22,11 @@ final class AccountSummaryVM: ObservableObject {
     @Published var percentile: Double = 0
     @Published var allTimeRankText: String = "#—"
 
+    /// Controls what the donut chart is showing right now.
     enum ChartMode { case percentile, dailyAvg }
     @Published var chartMode: ChartMode = .percentile
 
+    /// bucket for "points per day" in the last 7 days.
     struct DayPoint: Identifiable {
         var id: String { key }
         let date: Date
@@ -35,6 +40,8 @@ final class AccountSummaryVM: ObservableObject {
         Task { await refreshAll() }
     }
 
+    /// This function kicks off all Firestore reads in parallel,
+    /// so the Account tab doesn’t go into sleep mode
     func refreshAll() async {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         async let a = refreshDailyAndWeekly(uid: uid)
@@ -85,12 +92,14 @@ final class AccountSummaryVM: ObservableObject {
                 .getDocuments()
 
             var buckets: [String: Int] = [:]
+            // Pre-seed all 7 days so missing days show up as 0 instead of vanishing.
             for i in 0..<7 {
                 let day = cal.date(byAdding: .day, value: i, to: start7)!
                 let key = Self.key(for: day)
                 buckets[key] = 0
             }
 
+            // Bucket scores by yyyy-MM-dd in Melbourne time.
             for d in snap.documents {
                 guard let ts = d.data()["createdAt"] as? Timestamp else { continue }
                 let stamp = ts.dateValue()
@@ -98,6 +107,7 @@ final class AccountSummaryVM: ObservableObject {
                 buckets[key, default: 0] += (d.data()["points"] as? Int ?? 0)
             }
 
+            // Daily points are capped at 25 (10 FC + 15 Steamdle max).
             for (k, v) in buckets {
                 buckets[k] = min(25, v)
             }
@@ -116,6 +126,11 @@ final class AccountSummaryVM: ObservableObject {
         }
     }
 
+    /// This function crunches:
+    ///  - all-time total points for the current user
+    ///  - rank among all users
+    ///  - percentile *excluding* the user from the denominator,
+    /// so #1 player gets a clean 100%.
     private func refreshAllTimeRankAndPercentile(uid: String) async {
         do {
             let snap = try await db.collection("scores").getDocuments()
@@ -143,6 +158,7 @@ final class AccountSummaryVM: ObservableObject {
         }
     }
 
+    /// Turns a Date into a yyyy-MM-dd string in Melbourne time.
     private static func key(for date: Date) -> String {
         let f = DateFormatter()
         f.calendar = Date.melCalendar
@@ -151,6 +167,7 @@ final class AccountSummaryVM: ObservableObject {
         return f.string(from: date)
     }
 
+    /// Parses a yyyy-MM-dd string back into a Date in Melbourne time.
     private static func date(fromKey key: String) -> Date? {
         let f = DateFormatter()
         f.calendar = Date.melCalendar

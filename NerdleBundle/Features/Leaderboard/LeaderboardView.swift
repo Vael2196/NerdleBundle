@@ -8,6 +8,7 @@
 import SwiftUI
 import Combine
 
+/// Global leaderboard screen – swaps between daily / weekly / all-time.
 struct LeaderboardView: View {
     @State private var period: LeaderboardPeriod = .daily
     @StateObject private var vm = LeaderboardVM()
@@ -17,6 +18,7 @@ struct LeaderboardView: View {
             VStack(spacing: 12) {
                 Header(title: "Leaderboard")
 
+                // Segmented control to switch which list is shown.
                 Picker("Period", selection: $period) {
                     Text("Daily").tag(LeaderboardPeriod.daily)
                     Text("Weekly").tag(LeaderboardPeriod.weekly)
@@ -49,6 +51,7 @@ struct LeaderboardView: View {
         }
     }
 
+    /// Picks which leaderboard array to show based on the current segment.
     private var itemsForPeriod: [LeaderboardEntry] {
         switch period {
         case .daily: return vm.daily
@@ -72,6 +75,7 @@ private struct Header: View {
     }
 }
 
+/// Squarish badge that shows the rank number (#1, #2, etc.).
 private struct RankBadge: View {
     let rank: Int
     var body: some View {
@@ -84,12 +88,15 @@ private struct RankBadge: View {
     }
 }
 
+/// Minimal view model that listens to `LeaderboardService`
+/// and fans out updates into three arrays (daily/weekly/all-time).
 private final class LeaderboardVM: ObservableObject, LeaderboardListener {
     @Published var daily: [LeaderboardEntry] = []
     @Published var weekly: [LeaderboardEntry] = []
     @Published var allTime: [LeaderboardEntry] = []
 
     func onAppear() {
+        // Hook in when the view shows up.
         LeaderboardService.shared.listeners.addDelegate(self)
         LeaderboardService.shared.start(span: .daily)
         LeaderboardService.shared.start(span: .weekly)
@@ -97,6 +104,7 @@ private final class LeaderboardVM: ObservableObject, LeaderboardListener {
     }
 
     func onDisappear() {
+        // Unhook to avoid leaking listeners / extra Firestore reads.
         LeaderboardService.shared.listeners.removeDelegate(self)
         LeaderboardService.shared.stop(span: .daily)
         LeaderboardService.shared.stop(span: .weekly)
@@ -104,6 +112,8 @@ private final class LeaderboardVM: ObservableObject, LeaderboardListener {
     }
 
     func leaderboardUpdated(span: LeaderboardSpan, items: [LeaderboardEntry]) {
+        // Firestore callbacks are not guaranteed to be on main,
+        // so list updates are marshalled back onto the main thread.
         DispatchQueue.main.async {
             switch span {
             case .daily: self.daily = items

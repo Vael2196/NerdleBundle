@@ -9,6 +9,8 @@ import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
 
+/// Post-game summary screen for Film Connections.
+/// Shows the player’s chain, the optimal chain, and handles sharing to Firestore.
 struct FilmConnectionsResultView: View {
     let payload: FCDailyPayload
     let finishedPath: [FCNode]
@@ -68,6 +70,7 @@ struct FilmConnectionsResultView: View {
                     .foregroundStyle(.nbTextPrimary)
                     .padding(.horizontal)
 
+                    // Little hacky nav link trigger to reset back to home.
                     NavigationLink(
                         destination: HomeView(tab: .constant(.home))
                             .navigationBarBackButtonHidden(true),
@@ -79,6 +82,7 @@ struct FilmConnectionsResultView: View {
                 }
             }
             .background(Color.nbBackground.ignoresSafeArea())
+            // Three tiny alerts for different sharing outcomes.
             .alert("Sign in required", isPresented: $showLoginAlert) {
                 Button("OK", role: .cancel) { }
             } message: {
@@ -97,6 +101,7 @@ struct FilmConnectionsResultView: View {
         }
     }
 
+    /// Orchestrates the whole share flow: login check -> duplicate check -> submit score.
     private func handleShareTap() async {
         shareError = nil
 
@@ -128,11 +133,13 @@ struct FilmConnectionsResultView: View {
         await MainActor.run { sharing = false }
     }
 
+    /// Very small helper so the logic reads nicer.
     private func isLoggedInNow() -> Bool {
         if let u = Auth.auth().currentUser, !u.isAnonymous { return true }
         return false
     }
 
+    /// Prevents double-posting scores for the same day / game / user.
     private func alreadySharedToday() async -> Bool {
         guard let uid = Auth.auth().currentUser?.uid else { return false }
         let db = Firestore.firestore()
@@ -164,6 +171,7 @@ private struct ResultHeader: View {
     }
 }
 
+/// Row of three stat tiles (distance / time / points).
 private struct StatRow: View {
     let distance: Int
     let elapsed: Int
@@ -196,6 +204,7 @@ private struct StatTile: View {
     }
 }
 
+/// Reusable section that renders a chain (either player’s or shortest).
 private struct PathSection: View {
     let title: String
     let nodes: [FCNode]
@@ -214,6 +223,7 @@ private struct PathSection: View {
     }
 }
 
+/// Single node row inside the chain display.
 private struct ResultRow: View {
     let node: FCNode
     let faded: Bool
@@ -264,6 +274,7 @@ private struct ResultRow: View {
     }
 }
 
+/// Generic “Share” button with optional spinner.
 private struct ShareButton: View {
     let disabled: Bool
     let action: () -> Void

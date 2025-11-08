@@ -7,7 +7,8 @@
 
 import Foundation
 
-
+/// Saved state for a single guess in Steamdle.
+/// This gets encoded into UserDefaults via `SteamdleProgress`.
 enum SteamdleGuessState: String, Codable { case tooLow, tooHigh, correct }
 
 struct SteamdleSavedAttempt: Codable {
@@ -15,6 +16,8 @@ struct SteamdleSavedAttempt: Codable {
     let state: SteamdleGuessState
 }
 
+/// Snapshot of where the player is in today’s Steamdle run:
+/// which round, what guesses they’ve made, and which games are revealed.
 struct SteamdleProgress: Codable {
     var dayId: String
     var roundIndex: Int
@@ -22,6 +25,8 @@ struct SteamdleProgress: Codable {
     var revealed: [Bool]
 }
 
+/// Local store for Steamdle progress.
+/// Used to prevent cheating and to restore an in-progress session per day.
 final class SteamdleLocalStore {
     static let shared = SteamdleLocalStore()
     private let key = "nb.steamdle.progress"
@@ -32,6 +37,7 @@ final class SteamdleLocalStore {
             let progress = try? JSONDecoder().decode(SteamdleProgress.self, from: data),
             progress.dayId == dayId
         else { return nil }
+        // `sanitized()` makes sure the array shapes are valid (3 rounds, etc.).
         return progress.sanitized()
     }
 
@@ -46,6 +52,9 @@ final class SteamdleLocalStore {
 }
 
 private extension SteamdleProgress {
+    /// Ensures the struct is in a safe shape:
+    ///  - `attempts` and `revealed` always have 3 entries
+    ///  - `roundIndex` stays in [0, 2]
     func sanitized() -> SteamdleProgress {
         var a = attempts
         var r = revealed

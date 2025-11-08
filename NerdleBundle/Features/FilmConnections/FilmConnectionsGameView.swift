@@ -8,14 +8,17 @@
 import SwiftUI
 import Combine
 
-
+/// Main Film Connections gameplay screen – timer, search, and step-by-step path builder.
 struct FilmConnectionsGameView: View {
     let payload: FCDailyPayload
 
+    // Simple in-view timer for the round.
     @State private var timerActive = false
     @State private var elapsed: TimeInterval = 0
 
+    // Current chain the player is building.
     @State private var path: [FCNode] = []
+    // Current selectable list
     @State private var items: [ListRow] = []
     @State private var error: String?
     @State private var finished = false
@@ -23,8 +26,10 @@ struct FilmConnectionsGameView: View {
     @State private var query: String = ""
     @State private var goResult = false
 
+    /// Compact bucket for what’s needed on the result screen.
     struct ComputedResult { let distance: Int; let points: Int }
 
+    /// Enum representing one row in the list (actor or movie).
     enum ListRow: Identifiable {
         case person(FCPerson)
         case movie(FCMovie)
@@ -42,12 +47,14 @@ struct FilmConnectionsGameView: View {
         }
     }
 
+    /// Basic search filter over the current list – tiny in-memory filter, nothing fancy.
     private var filteredItems: [ListRow] {
         guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return items }
         let q = query.lowercased()
         return items.filter { $0.title.lowercased().contains(q) }
     }
 
+    /// Fallback to movieA if nothing is in the path yet.
     private var lastSelected: FCNode {
         path.last
         ?? FCNode(type: .movie,
@@ -62,6 +69,7 @@ struct FilmConnectionsGameView: View {
         VStack(spacing: 12) {
             Header
 
+            // Top stats row: timer, path distance (actors), and points once finished.
             HStack {
                 StatChip(label: "TIME", value: format(elapsed))
                 Divider().frame(height: 36).background(.white.opacity(0.1))
@@ -74,6 +82,7 @@ struct FilmConnectionsGameView: View {
             .clipShape(RoundedRectangle(cornerRadius: NB.corner))
             .padding(.horizontal)
 
+            // Current node on the left, target movie on the right.
             HStack(spacing: 12) {
                 SelectionCard(node: lastSelected, label: "Current")
                 SelectionCardMovie(movie: payload.movieB, label: "Target")
@@ -82,6 +91,7 @@ struct FilmConnectionsGameView: View {
 
             if let error { Text(error).foregroundStyle(.red) }
 
+            // Quick search over cast / movies.
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass").foregroundStyle(.nbTextSecondary)
                 TextField("Search cast or movies", text: $query)
@@ -94,6 +104,7 @@ struct FilmConnectionsGameView: View {
             .clipShape(RoundedRectangle(cornerRadius: 12))
             .padding(.horizontal)
 
+            // Tap-through list for picking next step in the chain.
             List {
                 ForEach(filteredItems) { row in
                     Button { handleTap(row) } label: {
@@ -109,9 +120,11 @@ struct FilmConnectionsGameView: View {
         }
         .background(Color.nbBackground.ignoresSafeArea())
         .onAppear { startOrJumpIfFinished() }
+        // Super basic timer ticking every 0.1s while active.
         .onReceive(Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()) { _ in
             if timerActive { elapsed += 0.1 }
         }
+        // Auto-navigate to result screen when `goResult` flips.
         .navigationDestination(isPresented: $goResult) {
             FilmConnectionsResultView(
                 payload: payload,
@@ -123,6 +136,7 @@ struct FilmConnectionsGameView: View {
         }
     }
 
+    /// Big title banner for this screen.
     private var Header: some View {
         Text("Film Connections")
             .font(.system(size: 40, weight: .bold, design: .rounded))
@@ -134,8 +148,10 @@ struct FilmConnectionsGameView: View {
             .padding(.horizontal, 8)
     }
 
+    /// Either resume last attempt from local storage or spin up a fresh run.
     private func startOrJumpIfFinished() {
         if let local = FCLocalStore.shared.load(dayId: payload.dayId) {
+            // Already completed today – jump straight to results.
             path = local.path
             elapsed = TimeInterval(local.durationSec)
             computed = .init(distance: local.distance, points: local.points)
@@ -146,6 +162,7 @@ struct FilmConnectionsGameView: View {
             return
         }
 
+        // First time playing today – set up start node and fetch cast.
         timerActive = true
         path = [FCNode(type: .movie,
                        id: payload.movieA.id,
@@ -156,6 +173,7 @@ struct FilmConnectionsGameView: View {
         Task { await loadCast(for: payload.movieA.id) }
     }
 
+    /// Pull cast for a movie and show them as clickable people.
     private func loadCast(for movieId: Int) async {
         do {
             error = nil
@@ -167,6 +185,7 @@ struct FilmConnectionsGameView: View {
         }
     }
 
+    /// Pull movies for a person and show them as clickable films.
     private func loadMovies(for personId: Int) async {
         do {
             error = nil
@@ -178,9 +197,11 @@ struct FilmConnectionsGameView: View {
         }
     }
 
+    /// Handles user tapping either a person or a movie in the list.
     private func handleTap(_ row: ListRow) {
         switch row {
         case .person(let p):
+            // Append actor node and then load their filmography.
             path.append(FCNode(type: .person,
                                id: p.id,
                                title: nil,
@@ -189,6 +210,7 @@ struct FilmConnectionsGameView: View {
                                releaseDate: nil))
             Task { await loadMovies(for: p.id) }
         case .movie(let m):
+            // Append movie node and either finish or load cast.
             path.append(FCNode(type: .movie,
                                id: m.id,
                                title: m.title,
@@ -203,15 +225,18 @@ struct FilmConnectionsGameView: View {
         }
     }
 
+    /// Distance is defined as number of actor hops in the chain.
     private func currentDistance() -> Int {
         path.filter { $0.type == .person }.count
     }
 
+    /// Locks in the result, computes scoring, and persists it locally.
     private func finishGame() {
         timerActive = false
         let distance = currentDistance()
         let shortest = payload.shortestDistance ?? distance
         let over = max(0, distance - shortest)
+        // Start at 10 points and lose 1 for each hop over the optimal distance.
         let points = max(0, 10 - over)
         computed = .init(distance: distance, points: points)
         finished = true
@@ -229,6 +254,7 @@ struct FilmConnectionsGameView: View {
         DispatchQueue.main.async { goResult = true }
     }
 
+    /// Tiny mm:ss formatter for the timer label.
     private func format(_ t: TimeInterval) -> String {
         let m = Int(t) / 60
         let s = Int(t) % 60
@@ -248,6 +274,7 @@ private struct StatChip: View {
     }
 }
 
+/// Generic row for either a person or movie inside the list.
 private struct RowCell: View {
     let row: FilmConnectionsGameView.ListRow
 
@@ -298,6 +325,7 @@ private struct RowCell: View {
     }
 }
 
+/// Card used to show the current node in the chain.
 private struct SelectionCard: View {
     let node: FCNode
     let label: String
@@ -331,6 +359,7 @@ private struct SelectionCard: View {
     }
 }
 
+/// Same as `SelectionCard` but specialized for the fixed target movie.
 private struct SelectionCardMovie: View {
     let movie: FCMovie
     let label: String

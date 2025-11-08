@@ -7,10 +7,11 @@
 
 import UIKit
 
+/// Legacy / placeholder app delegate.
+/// Firebase boot is handled by `FirebaseAppDelegate`
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
-        // TODO: add Firebase:
         // FirebaseApp.configure()
         return true
     }

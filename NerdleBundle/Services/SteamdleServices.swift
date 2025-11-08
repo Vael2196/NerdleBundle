@@ -8,6 +8,8 @@
 import Foundation
 import FirebaseFunctions
 
+/// Backend bridge for Steamdle.
+/// This type hides the Cloud Functions call and JSON decode for the daily payload.
 final class SteamdleBackend {
     static let shared = SteamdleBackend()
     private let functions = Functions.functions(region: "australia-southeast2")

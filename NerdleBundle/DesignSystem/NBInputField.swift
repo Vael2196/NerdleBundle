@@ -7,6 +7,8 @@
 
 import SwiftUI
 
+/// Reusable text input used across auth/settings screens.
+/// Handles placeholder styling + secure vs normal field in one place.
 struct NBInputField: View {
     let placeholder: String
     @Binding var text: String
@@ -16,15 +18,18 @@ struct NBInputField: View {
 
     @Environment(\.colorScheme) private var scheme
 
+    /// Background color tweaks slightly for light/dark so it blends with cards.
     private var fieldBackground: Color {
         scheme == .dark ? Color(red: 0.18, green: 0.19, blue: 0.22) : .white
     }
+    /// Placeholder text color, muted more in dark mode.
     private var placeholderColor: Color {
         scheme == .dark ? Color(white: 0.78) : Color(white: 0.55)
     }
 
     var body: some View {
         ZStack(alignment: .leading) {
+            // Custom placeholder so the style matches both SecureField and TextField.
             if text.isEmpty {
                 Text(placeholder)
                     .foregroundColor(placeholderColor)
