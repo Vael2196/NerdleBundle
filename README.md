@@ -111,8 +111,8 @@ The only real concern I have regarding the HIGs is that I don’t, unfortunately
 ### Feasibility and Technology
 External API’s:
 
-* (https://www.themoviedb.org)https://www.themoviedb.org/ - TMDB contains a lot of info on TV shows, as well as movies and every other sort of cinematic media, really. I am planning on using it for the Film Connections trivia game as a backbone to get all the initial data and automate the process of actually making the trivia itself.
-* (https://steamcommunity.com/dev)https://steamcommunity.com/dev - Steam as a platform has its own video game database, so I am aiming to use it for Steamdle, a game where you guess the price of a video game.
+* https://www.themoviedb.org)https://www.themoviedb.org/ - TMDB contains a lot of info on TV shows, as well as movies and every other sort of cinematic media, really. I am planning on using it for the Film Connections trivia game as a backbone to get all the initial data and automate the process of actually making the trivia itself.
+* https://steamcommunity.com/dev)https://steamcommunity.com/dev - Steam as a platform has its own video game database, so I am aiming to use it for Steamdle, a game where you guess the price of a video game.
 
 
 As a part of the requirements, I will also be using:
